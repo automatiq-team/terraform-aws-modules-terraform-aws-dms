@@ -6,7 +6,7 @@ locals {
   account_id = data.aws_caller_identity.current.account_id
   dns_suffix = data.aws_partition.current.dns_suffix
   partition  = data.aws_partition.current.partition
-  region     = data.aws_region.current.name
+  region     = data.aws_region.current.region
 
   subnet_group_id = var.create && var.create_repl_subnet_group ? aws_dms_replication_subnet_group.this[0].id : var.repl_instance_subnet_group_id
 }
@@ -69,7 +69,10 @@ resource "time_sleep" "wait_for_dependency_resources" {
   depends_on = [
     aws_iam_role.dms_access_for_endpoint,
     aws_iam_role.dms_cloudwatch_logs_role,
-    aws_iam_role.dms_vpc_role
+    aws_iam_role.dms_vpc_role,
+    aws_iam_role_policy_attachment.dms_access_for_endpoint,
+    aws_iam_role_policy_attachment.dms_cloudwatch_logs_role,
+    aws_iam_role_policy_attachment.dms_vpc_role,
   ]
 
   create_duration  = "10s"
@@ -84,10 +87,16 @@ resource "aws_iam_role" "dms_access_for_endpoint" {
   description           = "DMS IAM role for endpoint access permissions"
   permissions_boundary  = var.iam_role_permissions_boundary
   assume_role_policy    = var.enable_redshift_target_permissions ? data.aws_iam_policy_document.dms_assume_role_redshift[0].json : data.aws_iam_policy_document.dms_assume_role[0].json
-  managed_policy_arns   = ["arn:${local.partition}:iam::aws:policy/service-role/AmazonDMSRedshiftS3Role"]
   force_detach_policies = true
 
   tags = merge(var.tags, var.iam_role_tags)
+}
+
+resource "aws_iam_role_policy_attachment" "dms_access_for_endpoint" {
+  count = var.create && var.create_iam_roles ? 1 : 0
+
+  role       = aws_iam_role.dms_access_for_endpoint[0].name
+  policy_arn = "arn:${local.partition}:iam::aws:policy/service-role/AmazonDMSRedshiftS3Role"
 }
 
 # DMS CloudWatch Logs
@@ -98,10 +107,16 @@ resource "aws_iam_role" "dms_cloudwatch_logs_role" {
   description           = "DMS IAM role for CloudWatch logs permissions"
   permissions_boundary  = var.iam_role_permissions_boundary
   assume_role_policy    = data.aws_iam_policy_document.dms_assume_role[0].json
-  managed_policy_arns   = ["arn:${local.partition}:iam::aws:policy/service-role/AmazonDMSCloudWatchLogsRole"]
   force_detach_policies = true
 
   tags = merge(var.tags, var.iam_role_tags)
+}
+
+resource "aws_iam_role_policy_attachment" "dms_cloudwatch_logs_role" {
+  count = var.create && var.create_iam_roles ? 1 : 0
+
+  role       = aws_iam_role.dms_cloudwatch_logs_role[0].name
+  policy_arn = "arn:${local.partition}:iam::aws:policy/service-role/AmazonDMSCloudWatchLogsRole"
 }
 
 # DMS VPC
@@ -112,10 +127,16 @@ resource "aws_iam_role" "dms_vpc_role" {
   description           = "DMS IAM role for VPC permissions"
   permissions_boundary  = var.iam_role_permissions_boundary
   assume_role_policy    = data.aws_iam_policy_document.dms_assume_role[0].json
-  managed_policy_arns   = ["arn:${local.partition}:iam::aws:policy/service-role/AmazonDMSVPCManagementRole"]
   force_detach_policies = true
 
   tags = merge(var.tags, var.iam_role_tags)
+}
+
+resource "aws_iam_role_policy_attachment" "dms_vpc_role" {
+  count = var.create && var.create_iam_roles ? 1 : 0
+
+  role       = aws_iam_role.dms_vpc_role[0].name
+  policy_arn = "arn:${local.partition}:iam::aws:policy/service-role/AmazonDMSVPCManagementRole"
 }
 
 ################################################################################
